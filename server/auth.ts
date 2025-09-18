@@ -148,7 +148,7 @@ export async function setupAuth(app: Express) {
   });
 
   // Get current user endpoint
-  app.get("/api/auth/user", (req, res) => {
+  app.get("/api/auth/user", async (req, res) => {
     const token = req.cookies?.jwt;
     
     if (!token) {
@@ -160,8 +160,42 @@ export async function setupAuth(app: Express) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    // Return the user data from the JWT payload
-    res.json(decoded);
+    try {
+      // For regular staff users, get permissions from users table
+      if (!decoded.id.startsWith('branch-')) {
+        const user = await storage.getUser(decoded.id);
+        if (user && user.permissions) {
+          return res.json({
+            ...decoded,
+            permissions: user.permissions
+          });
+        }
+      }
+      // For branch users, get permissions from branch_users table
+      else if (decoded.id.startsWith('branch-user-')) {
+        const branchUserId = decoded.id.replace('branch-user-', '');
+        const branchUser = await storage.getBranchUserById(branchUserId);
+        if (branchUser && branchUser.permissions) {
+          return res.json({
+            ...decoded,
+            permissions: branchUser.permissions
+          });
+        }
+      }
+      
+      // Fallback: return decoded data with empty permissions
+      res.json({
+        ...decoded,
+        permissions: []
+      });
+    } catch (error) {
+      console.error('Error fetching user permissions:', error);
+      // Fallback to decoded token data with empty permissions
+      res.json({
+        ...decoded,
+        permissions: []
+      });
+    }
   });
 
   // Add a redirect route for /api/login to prevent 404 errors

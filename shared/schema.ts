@@ -35,6 +35,7 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   role: varchar("role", { enum: ["admin", "staff", "manager"] }).notNull().default("staff"),
   branchId: varchar("branch_id"), // Associated branch for staff/manager users
+  permissions: jsonb("permissions").$type<string[]>().default([]), // Module permissions array
   isActive: text("is_active").notNull().default("true"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -102,6 +103,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   role: z.enum(["admin", "manager", "staff"], {
     errorMap: () => ({ message: "Please select a valid role" })
   }),
+  permissions: z.array(z.string()).default([]),
   isActive: z.enum(["true", "false"], {
     errorMap: () => ({ message: "Please select if the user is active" })
   })
@@ -188,6 +190,7 @@ export const branchUsers = pgTable("branch_users", {
   email: varchar("email").notNull().unique(),
   generatedPassword: varchar("generated_password").notNull(),
   role: varchar("role").notNull().default("staff"), // staff or manager
+  permissions: jsonb("permissions").$type<string[]>().default([]), // Module permissions array
   isActive: varchar("is_active").notNull().default("true"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -206,6 +209,7 @@ export const insertBranchUserSchema = createInsertSchema(branchUsers).omit({
   role: z.enum(["staff", "manager"], {
     errorMap: () => ({ message: "Please select a valid role" })
   }),
+  permissions: z.array(z.string()).default([]),
   isActive: z.enum(["true", "false"], {
     errorMap: () => ({ message: "Please select if the user is active" })
   })

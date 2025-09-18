@@ -117,6 +117,7 @@ export interface IStorage {
   getBranchUsers(branchId: string): Promise<BranchUser[]>;
   getAllBranchUsers(): Promise<BranchUser[]>;
   getBranchUserByEmail(email: string): Promise<BranchUser | undefined>;
+  getBranchUserById(id: string): Promise<BranchUser | undefined>;
   createBranchUser(branchUser: InsertBranchUser): Promise<BranchUser>;
   updateBranchUserStatus(id: string, isActive: string): Promise<BranchUser>;
   deleteBranchUser(id: string): Promise<void>;
@@ -999,34 +1000,103 @@ export class DatabaseStorage implements IStorage {
       .sort((a, b) => b.value - a.value);
 
     // Staff Performance Analytics - individual performance tracking
-    const allStaffUsers = await db.select().from(users).where(eq(users.role, 'staff'));
+    // Get all users who have created leads (including admins, staff, and branch users)
+    const leadCreatorIds = [...new Set(periodLeads.map(lead => lead.createdBy || 'system').filter(Boolean))];
+    
+    const allUsers = await db.select().from(users);
     const allBranchUsers = await db.select().from(branchUsers);
     
-    // Combine regular staff users and branch users for comprehensive staff performance
-    const allStaffMembers = [
-      ...allStaffUsers.map(user => ({
-        id: user.id,
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        email: user.email,
-        branchId: user.branchId,
-        type: 'staff' as const
-      })),
-      ...allBranchUsers.map(user => ({
-        id: user.id,
-        name: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-        email: user.email,
-        branchId: user.branchId,
-        type: 'branch_staff' as const
-      }))
-    ];
+    // Create a comprehensive list of all potential staff members and lead creators
+    const allStaffMembers = [];
+    
+    // Add all users who have created leads
+    for (const creatorId of leadCreatorIds) {
+      // Check if it's a regular user
+      const user = allUsers.find(u => u.id === creatorId);
+      if (user) {
+        allStaffMembers.push({
+          id: user.id,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          email: user.email,
+          branchId: user.branchId,
+          type: user.role === 'admin' ? 'admin' : user.role === 'staff' ? 'staff' : 'user' as const
+        });
+        continue;
+      }
+      
+      // Check if it's a branch user (with branch-user- prefix)
+      if (creatorId.startsWith('branch-user-')) {
+        const branchUserId = creatorId.replace('branch-user-', '');
+        const branchUser = allBranchUsers.find(bu => bu.id === branchUserId);
+        if (branchUser) {
+          allStaffMembers.push({
+            id: creatorId, // Keep the full ID with prefix
+            name: `${branchUser.firstName || ''} ${branchUser.lastName || ''}`.trim() || branchUser.email,
+            email: branchUser.email,
+            branchId: branchUser.branchId,
+            type: 'branch_staff' as const
+          });
+          continue;
+        }
+      }
+      
+      // Handle system/null leads or unknown users
+      if (creatorId === 'system') {
+        allStaffMembers.push({
+          id: creatorId,
+          name: 'System/Import',
+          email: 'system@qmobility.com',
+          branchId: null,
+          type: 'system' as const
+        });
+      } else {
+        // If we can't find the user, still add them with basic info
+        allStaffMembers.push({
+          id: creatorId,
+          name: 'Unknown User',
+          email: 'unknown@example.com',
+          branchId: null,
+          type: 'unknown' as const
+        });
+      }
+    }
+    
+    // Also add staff users and branch users who haven't created leads yet
+    const staffUsers = allUsers.filter(u => u.role === 'staff');
+    for (const user of staffUsers) {
+      if (!allStaffMembers.find(sm => sm.id === user.id)) {
+        allStaffMembers.push({
+          id: user.id,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          email: user.email,
+          branchId: user.branchId,
+          type: 'staff' as const
+        });
+      }
+    }
+    
+    for (const branchUser of allBranchUsers) {
+      const fullId = `branch-user-${branchUser.id}`;
+      if (!allStaffMembers.find(sm => sm.id === fullId)) {
+        allStaffMembers.push({
+          id: fullId,
+          name: `${branchUser.firstName || ''} ${branchUser.lastName || ''}`.trim() || branchUser.email,
+          email: branchUser.email,
+          branchId: branchUser.branchId,
+          type: 'branch_staff' as const
+        });
+      }
+    }
     
     const staffPerformance = await Promise.all(
       allStaffMembers.map(async (staff) => {
         // Get leads created by this staff member - handle both regular staff and branch staff IDs
-        const staffLeads = periodLeads.filter(lead => 
-          lead.createdBy === staff.id || 
-          lead.createdBy === `branch-user-${staff.id}`
-        );
+        const staffLeads = periodLeads.filter(lead => {
+          const leadCreator = lead.createdBy || 'system';
+          return leadCreator === staff.id || 
+                 leadCreator === `branch-user-${staff.id}` ||
+                 (staff.id === 'system' && !lead.createdBy);
+        });
         
         const capturedLeads = staffLeads.length;
         const contactedLeads = staffLeads.filter(lead => lead.status === 'contacted' || lead.status === 'converted').length;
@@ -1243,6 +1313,11 @@ export class DatabaseStorage implements IStorage {
 
   async getBranchUserByEmail(email: string): Promise<BranchUser | undefined> {
     const [branchUser] = await db.select().from(branchUsers).where(eq(branchUsers.email, email));
+    return branchUser;
+  }
+
+  async getBranchUserById(id: string): Promise<BranchUser | undefined> {
+    const [branchUser] = await db.select().from(branchUsers).where(eq(branchUsers.id, id));
     return branchUser;
   }
 

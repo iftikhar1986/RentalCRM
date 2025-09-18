@@ -12,6 +12,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Users, UserCheck, UserX, ArrowLeft, RefreshCw, Eye, EyeOff, Copy, Trash2, Edit } from "lucide-react";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { Link } from "wouter";
@@ -25,6 +26,8 @@ const createUserSchema = insertUserSchema.extend({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   role: z.enum(["admin", "staff"]).default("staff"),
+  permissions: z.array(z.string()).default([]),
+  isActive: z.enum(["true", "false"]).default("true"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
@@ -33,6 +36,7 @@ const editUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   role: z.enum(["admin", "staff"]),
+  permissions: z.array(z.string()).default([]),
   isActive: z.boolean().default(true),
 });
 
@@ -115,8 +119,11 @@ export default function UsersPage() {
       firstName: "",
       lastName: "",
       role: "staff",
+      permissions: [],
+      isActive: "true",
       password: "",
     },
+    mode: "onChange", // Enable real-time validation
   });
 
   const editForm = useForm<EditUserForm>({
@@ -126,6 +133,7 @@ export default function UsersPage() {
       firstName: "",
       lastName: "",
       role: "staff",
+      permissions: [],
       isActive: true,
     },
   });
@@ -145,7 +153,7 @@ export default function UsersPage() {
     onSuccess: (data) => {
       toast({
         title: "Success",
-        description: "User created successfully with custom password",
+        description: "User created successfully with module permissions",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
       setIsCreateDialogOpen(false);
@@ -164,9 +172,16 @@ export default function UsersPage() {
         }, 500);
         return;
       }
+      
+      // Try to get more specific error message
+      let errorMessage = "Failed to create user";
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as any).message;
+      }
+      
       toast({
         title: "Error",
-        description: "Failed to create user",
+        description: errorMessage,
         variant: "destructive",
       });
     },
@@ -334,6 +349,7 @@ export default function UsersPage() {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role as "admin" | "staff",
+      permissions: (user as any).permissions || [],
       isActive: user.isActive === "true",
     });
     setIsEditDialogOpen(true);
@@ -565,6 +581,48 @@ export default function UsersPage() {
                   
                   <FormField
                     control={form.control}
+                    name="permissions"
+                    render={({ field }) => {
+                      const availableModules = [
+                        { id: "analytics", label: "Analytics" },
+                        { id: "users", label: "Users" },
+                        { id: "branches", label: "Branches" },
+                        { id: "vehicles", label: "Vehicles" },
+                        { id: "settings", label: "Settings" }
+                      ];
+                      
+                      return (
+                        <FormItem>
+                          <FormLabel>Module Permissions</FormLabel>
+                          <div className="grid grid-cols-2 gap-3 p-3 border rounded-lg">
+                            {availableModules.map((module) => (
+                              <div key={module.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`create-${module.id}`}
+                                  checked={field.value?.includes(module.id) || false}
+                                  onCheckedChange={(checked) => {
+                                    const currentPermissions = field.value || [];
+                                    if (checked) {
+                                      field.onChange([...currentPermissions, module.id]);
+                                    } else {
+                                      field.onChange(currentPermissions.filter(p => p !== module.id));
+                                    }
+                                  }}
+                                />
+                                <label htmlFor={`create-${module.id}`} className="text-sm font-medium">
+                                  {module.label}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+                  
+                  <FormField
+                    control={form.control}
                     name="password"
                     render={({ field }) => (
                       <FormItem>
@@ -689,6 +747,15 @@ export default function UsersPage() {
                     <p className="text-xs sm:text-sm text-gray-500">
                       Created: {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "N/A"}
                     </p>
+                    {(user as any).permissions && (user as any).permissions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {(user as any).permissions.map((permission: string) => (
+                          <Badge key={permission} variant="outline" className="text-xs capitalize">
+                            {permission}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
@@ -834,6 +901,48 @@ export default function UsersPage() {
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+              
+              <FormField
+                control={editForm.control}
+                name="permissions"
+                render={({ field }) => {
+                  const availableModules = [
+                    { id: "analytics", label: "Analytics" },
+                    { id: "users", label: "Users" },
+                    { id: "branches", label: "Branches" },
+                    { id: "vehicles", label: "Vehicles" },
+                    { id: "settings", label: "Settings" }
+                  ];
+                  
+                  return (
+                    <FormItem>
+                      <FormLabel>Module Permissions</FormLabel>
+                      <div className="grid grid-cols-2 gap-3 p-3 border rounded-lg">
+                        {availableModules.map((module) => (
+                          <div key={module.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`edit-${module.id}`}
+                              checked={field.value?.includes(module.id) || false}
+                              onCheckedChange={(checked) => {
+                                const currentPermissions = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentPermissions, module.id]);
+                                } else {
+                                  field.onChange(currentPermissions.filter(p => p !== module.id));
+                                }
+                              }}
+                            />
+                            <label htmlFor={`edit-${module.id}`} className="text-sm font-medium">
+                              {module.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
               
               <FormField

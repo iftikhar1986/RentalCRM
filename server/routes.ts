@@ -901,7 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/users/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const { email, firstName, lastName, role, isActive } = req.body;
+      const { email, firstName, lastName, role, permissions, isActive } = req.body;
       
       if (!email || !firstName || !lastName || !role) {
         return res.status(400).json({ message: "Email, first name, last name, and role are required" });
@@ -921,13 +921,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email is already taken by another user" });
       }
 
-      const updateData = {
+      const updateData: any = {
         email,
         firstName,
         lastName,
         role,
         isActive: isActive !== undefined ? (isActive ? "true" : "false") : undefined
       };
+      
+      // Include permissions if provided
+      if (permissions !== undefined) {
+        updateData.permissions = Array.isArray(permissions) ? permissions : [];
+      }
 
       const user = await storage.updateUser(id, updateData);
       res.json(user);
@@ -1104,23 +1109,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/branches/:branchId/users", requireAdmin, async (req, res) => {
     try {
       const { branchId } = req.params;
-      console.log("Received branch user creation request:");
-      console.log("Branch ID:", branchId);
-      console.log("Request body:", req.body);
       
       // Add default values for fields not provided by frontend
       const dataToValidate = { 
         ...req.body, 
         branchId,
-        isActive: req.body.isActive || "true" // Default to active if not provided
+        isActive: req.body.isActive || "true", // Default to active if not provided
+        permissions: req.body.permissions || [] // Default to empty permissions array
       };
-      console.log("Data to validate:", dataToValidate);
       
       const parsed = insertBranchUserSchema.safeParse(dataToValidate);
       
       if (!parsed.success) {
-        console.log("Validation errors:", parsed.error.errors);
-        
         // Extract field-specific errors for better user experience
         const fieldErrors = parsed.error.errors.map(err => ({
           field: err.path.join('.'),
@@ -1138,7 +1138,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log("Validated data:", parsed.data);
       const branchUser = await storage.createBranchUser(parsed.data);
       res.status(201).json(branchUser);
     } catch (error) {

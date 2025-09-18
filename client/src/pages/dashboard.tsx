@@ -19,6 +19,7 @@ import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialo
 import UserManual from "@/components/user-manual";
 import { Car, Users, Check, Clock, X, Download, Plus, Search, Eye, Edit, Trash2, LogOut, Activity, Building, Filter, ChevronDown, ChevronUp, CalendarIcon, Archive, Phone, Settings, Printer, Book } from "lucide-react";
 import { Link } from "wouter";
+import { getAccessibleModules } from "@/lib/permissions";
 import type { Lead } from "@shared/schema";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -750,50 +751,37 @@ export default function Dashboard() {
             
             <div className="flex items-center gap-1 sm:gap-2 lg:gap-3 flex-shrink-0">
               {/* Navigation - responsive layout */}
-              {(user as any)?.role === "admin" && (
-                <nav className="hidden sm:flex items-center gap-1 sm:gap-2 lg:gap-3">
-                  <Link href="/analytics">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs sm:text-sm">
-                      <div className="w-4 sm:w-5 h-4 sm:h-5 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Activity className="h-2.5 sm:h-3 w-2.5 sm:w-3 text-blue-600" />
-                      </div>
-                      <span className="hidden md:inline">Analytics</span>
-                    </Button>
-                  </Link>
-                  <Link href="/users">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs sm:text-sm">
-                      <div className="w-4 sm:w-5 h-4 sm:h-5 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Users className="h-2.5 sm:h-3 w-2.5 sm:w-3 text-green-600" />
-                      </div>
-                      <span className="hidden md:inline">Users</span>
-                    </Button>
-                  </Link>
-                  <Link href="/branches">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs sm:text-sm">
-                      <div className="w-4 sm:w-5 h-4 sm:h-5 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <Building className="h-2.5 sm:h-3 w-2.5 sm:w-3 text-purple-600" />
-                      </div>
-                      <span className="hidden md:inline">Branches</span>
-                    </Button>
-                  </Link>
-                  <Link href="/vehicles">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs sm:text-sm">
-                      <div className="w-4 sm:w-5 h-4 sm:h-5 bg-orange-100 rounded-lg flex items-center justify-center">
-                        <Car className="h-2.5 sm:h-3 w-2.5 sm:w-3 text-orange-600" />
-                      </div>
-                      <span className="hidden md:inline">Vehicles</span>
-                    </Button>
-                  </Link>
-                  <Link href="/field-settings">
-                    <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs sm:text-sm">
-                      <div className="w-4 sm:w-5 h-4 sm:h-5 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <Settings className="h-2.5 sm:h-3 w-2.5 sm:w-3 text-gray-600" />
-                      </div>
-                      <span className="hidden md:inline">Settings</span>
-                    </Button>
-                  </Link>
-                </nav>
-              )}
+              {(() => {
+                const accessibleModules = getAccessibleModules(user as any);
+                const getModuleIcon = (moduleId: string) => {
+                  switch (moduleId) {
+                    case 'analytics': return { icon: Activity, bgColor: 'bg-blue-100', textColor: 'text-blue-600' };
+                    case 'users': return { icon: Users, bgColor: 'bg-green-100', textColor: 'text-green-600' };
+                    case 'branches': return { icon: Building, bgColor: 'bg-purple-100', textColor: 'text-purple-600' };
+                    case 'vehicles': return { icon: Car, bgColor: 'bg-orange-100', textColor: 'text-orange-600' };
+                    case 'settings': return { icon: Settings, bgColor: 'bg-gray-100', textColor: 'text-gray-600' };
+                    default: return { icon: Settings, bgColor: 'bg-gray-100', textColor: 'text-gray-600' };
+                  }
+                };
+                
+                return accessibleModules.length > 0 && (
+                  <nav className="hidden sm:flex items-center gap-1 sm:gap-2 lg:gap-3">
+                    {accessibleModules.map((module) => {
+                      const { icon: Icon, bgColor, textColor } = getModuleIcon(module.id);
+                      return (
+                        <Link key={module.id} href={module.path}>
+                          <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 h-8 sm:h-10 px-2 sm:px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs sm:text-sm">
+                            <div className={`w-4 sm:w-5 h-4 sm:h-5 ${bgColor} rounded-lg flex items-center justify-center`}>
+                              <Icon className={`h-2.5 sm:h-3 w-2.5 sm:w-3 ${textColor}`} />
+                            </div>
+                            <span className="hidden md:inline">{module.label}</span>
+                          </Button>
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                );
+              })()}
               
               {/* User Manual Button */}
               <Button
@@ -815,52 +803,39 @@ export default function Dashboard() {
           </div>
           
           {/* Mobile Navigation - below header */}
-          {(user as any)?.role === "admin" && (
-            <nav className="sm:hidden mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                <Link href="/analytics">
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs whitespace-nowrap">
-                    <div className="w-4 h-4 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Activity className="h-2.5 w-2.5 text-blue-600" />
-                    </div>
-                    Analytics
-                  </Button>
-                </Link>
-                <Link href="/users">
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs whitespace-nowrap">
-                    <div className="w-4 h-4 bg-green-100 rounded-lg flex items-center justify-center">
-                      <Users className="h-2.5 w-2.5 text-green-600" />
-                    </div>
-                    Users
-                  </Button>
-                </Link>
-                <Link href="/branches">
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs whitespace-nowrap">
-                    <div className="w-4 h-4 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <Building className="h-2.5 w-2.5 text-purple-600" />
-                    </div>
-                    Branches
-                  </Button>
-                </Link>
-                <Link href="/vehicles">
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs whitespace-nowrap">
-                    <div className="w-4 h-4 bg-orange-100 rounded-lg flex items-center justify-center">
-                      <Car className="h-2.5 w-2.5 text-orange-600" />
-                    </div>
-                    Vehicles
-                  </Button>
-                </Link>
-                <Link href="/field-settings">
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs whitespace-nowrap">
-                    <div className="w-4 h-4 bg-gray-100 rounded-lg flex items-center justify-center">
-                      <Settings className="h-2.5 w-2.5 text-gray-600" />
-                    </div>
-                    Settings
-                  </Button>
-                </Link>
-              </div>
-            </nav>
-          )}
+          {(() => {
+            const accessibleModules = getAccessibleModules(user as any);
+            const getModuleIcon = (moduleId: string) => {
+              switch (moduleId) {
+                case 'analytics': return { icon: Activity, bgColor: 'bg-blue-100', textColor: 'text-blue-600' };
+                case 'users': return { icon: Users, bgColor: 'bg-green-100', textColor: 'text-green-600' };
+                case 'branches': return { icon: Building, bgColor: 'bg-purple-100', textColor: 'text-purple-600' };
+                case 'vehicles': return { icon: Car, bgColor: 'bg-orange-100', textColor: 'text-orange-600' };
+                case 'settings': return { icon: Settings, bgColor: 'bg-gray-100', textColor: 'text-gray-600' };
+                default: return { icon: Settings, bgColor: 'bg-gray-100', textColor: 'text-gray-600' };
+              }
+            };
+            
+            return accessibleModules.length > 0 && (
+              <nav className="sm:hidden mt-3 pt-3 border-t border-gray-100">
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  {accessibleModules.map((module) => {
+                    const { icon: Icon, bgColor, textColor } = getModuleIcon(module.id);
+                    return (
+                      <Link key={module.id} href={module.path}>
+                        <Button variant="ghost" size="sm" className="flex items-center gap-2 h-9 px-3 rounded-xl hover:bg-gray-100/80 transition-all duration-200 text-xs whitespace-nowrap">
+                          <div className={`w-4 h-4 ${bgColor} rounded-lg flex items-center justify-center`}>
+                            <Icon className={`h-2.5 w-2.5 ${textColor}`} />
+                          </div>
+                          {module.label}
+                        </Button>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </nav>
+            );
+          })()}
         </div>
       </header>
 

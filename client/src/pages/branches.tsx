@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -45,6 +46,8 @@ const branchUserFormSchema = z.object({
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Valid email is required"),
   role: z.string().min(1, "Role is required"),
+  permissions: z.array(z.string()).default([]),
+  isActive: z.enum(["true", "false"]).default("true"),
 });
 
 type BranchFormData = z.infer<typeof branchFormSchema>;
@@ -101,6 +104,8 @@ export default function Branches() {
       lastName: "",
       email: "",
       role: "staff",
+      permissions: [],
+      isActive: "true",
     },
   });
 
@@ -704,6 +709,15 @@ export default function Branches() {
                                 </div>
                                 <div className="mt-1 text-gray-600">
                                   <div>{user.email}</div>
+                                  {(user as any).permissions && (user as any).permissions.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {(user as any).permissions.map((permission: string) => (
+                                        <Badge key={permission} variant="outline" className="text-xs capitalize">
+                                          {permission}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  )}
                                   <div className="flex items-center space-x-1 mt-1">
                                     <span>Password:</span>
                                     <span className="font-mono">
@@ -1002,6 +1016,48 @@ export default function Branches() {
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                <FormField
+                  control={userForm.control}
+                  name="permissions"
+                  render={({ field }) => {
+                    const availableModules = [
+                      { id: "analytics", label: "Analytics" },
+                      { id: "users", label: "Users" },
+                      { id: "branches", label: "Branches" },
+                      { id: "vehicles", label: "Vehicles" },
+                      { id: "settings", label: "Settings" }
+                    ];
+                    
+                    return (
+                      <FormItem>
+                        <FormLabel>Module Permissions</FormLabel>
+                        <div className="grid grid-cols-2 gap-3 p-3 border rounded-lg">
+                          {availableModules.map((module) => (
+                            <div key={module.id} className="flex items-center space-x-2">
+                              <Checkbox
+                                id={`branch-user-${module.id}`}
+                                checked={field.value?.includes(module.id) || false}
+                                onCheckedChange={(checked) => {
+                                  const currentPermissions = field.value || [];
+                                  if (checked) {
+                                    field.onChange([...currentPermissions, module.id]);
+                                  } else {
+                                    field.onChange(currentPermissions.filter(p => p !== module.id));
+                                  }
+                                }}
+                              />
+                              <label htmlFor={`branch-user-${module.id}`} className="text-sm font-medium">
+                                {module.label}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <div className="flex justify-end space-x-2 pt-4">
